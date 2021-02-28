@@ -58,6 +58,7 @@ void lockOpenBehavior();
 void maintenanceModeMenu();
 //zdalny restart
 void softwareReset();
+void btRestartConfirmation();
 //pobranie id porzez bluetooth
 uint8_t getFingerId();
 //dodawanie nowego odcisku
@@ -66,6 +67,7 @@ void btEnrollFingerprint(uint8_t fId);
 //usuwanie istniejącego odcisku
 void btRemoveFingerProcedure();
 void btRemoveFingerprint(uint8_t fId);
+void btRemoveFingerConfirmation(uint8_t fId);
 //czyszczenie bazy
 void btClearDatabaseProcedure();
 void btClearConfirmation();
