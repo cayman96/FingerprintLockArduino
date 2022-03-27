@@ -53,7 +53,7 @@ void unlockWithFingerprint();
 void closeLock();
 void openLock();
 void lockOpenBehavior();
-//sprawdzenie czy podłączył się ktoś sparowany
+//sprawdzenie czy podłączył się ktoś sparowany - zrobić od tego funkcję?
 //tryb serwisowy
 void maintenanceModeMenu();
 //zdalny restart
