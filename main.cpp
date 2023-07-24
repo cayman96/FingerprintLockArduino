@@ -1,5 +1,5 @@
 //jedyne, co tu zawieram do bibliotekę z moimi funkcjami - biblioteki dot. skanera, serwa itp. są w tym headerze.
-#include "doorLockFunctions.h"
+#include <doorLockFunctions.h>
 //UWAGA!!! deklaracja obiektów takich jak Bouncer, SoftwareSetial, skanera, ekranu lcd i serwa dodałem TUTAJ!!! 
 //dodanie w headerze powoduje, że jednak z jakiegoś powodu się one nie deklarują, wskutek tego - cały układ nie działa prawidłowo!
 Bounce openLockBtn = Bounce();
