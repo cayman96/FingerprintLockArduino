@@ -1,5 +1,5 @@
 //biblioteki
-#include "Arduino.h"
+#include <Arduino.h>
 #include <Bounce2.h>
 #include <Wire.h>
 #include <PWMServo.h>
@@ -25,14 +25,14 @@ const unsigned int emergencyCheck = 25;
 const unsigned short doorDidntOpenTime = 10000;
 const unsigned int fpScanCheck = 100;
 extern char btComm;
-//pobranie peryferiów zadeklarowanych w pliku .ino
+//pobranie peryferiów zadeklarowanych w pliku głównym
 extern Bounce openLockBtn;
 extern hd44780_I2Cexp lcd;
 extern PWMServo doorLock;
 extern SoftwareSerial btModule;
 extern SoftwareSerial fingerprintScanner;
 extern Adafruit_Fingerprint fingerScan;
-//pobranie zmiennych, na których odbędą się operacje z pliku .ino
+//pobranie zmiennych, na których odbędą się operacje z pliku głównym
 extern boolean btState;
 extern boolean scannerConn;
 extern boolean lastBtState;
@@ -53,7 +53,7 @@ void unlockWithFingerprint();
 void closeLock();
 void openLock();
 void lockOpenBehavior();
-//sprawdzenie czy podłączył się ktoś sparowany
+//sprawdzenie czy podłączył się ktoś sparowany - zrobić od tego funkcję?
 //tryb serwisowy
 void maintenanceModeMenu();
 //zdalny restart
