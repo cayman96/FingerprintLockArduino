@@ -48,7 +48,7 @@ void checkPrevBtState();
 void fpScannerCheck();
 //manualne otwarcie i wykrywanie palca
 void manualOpen();
-void unlockWithFingerprint();
+uint8_t unlockWithFingerprint();
 //funkcje otwierania i zamykania drzwi
 void closeLock();
 void openLock();

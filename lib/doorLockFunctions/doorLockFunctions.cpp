@@ -61,7 +61,7 @@ void manualOpen() {
   lockOpenBehavior();
 }
 
-void unlockWithFingerprint() {
+uint8_t unlockWithFingerprint() {
   //przełączenie na skaner - niestety, arduino nie może jednocześnie podsłuchiwać/nadawać domyślnie na dwóch portach szeregowych na raz.
   fingerprintScanner.listen();
   //pobranie obrazu z szybki skanera
@@ -74,12 +74,11 @@ void unlockWithFingerprint() {
       //sprawdzenie, czy skaner wgl "żyje"
     case FINGERPRINT_PACKETRECIEVEERR:
       fpScannerCheck();
-      break;
     default:
       //jeśli 2 ww. warunki się nie spełnią, to sprawdza stan przycisku
       openLockBtn.update();
       if (openLockBtn.fell()) manualOpen();
-      // return p;
+      return p;
   }
   //pobranie obrazu palca z szybki i kompliacja do zgodnego formatu dla skanera
   p = fingerScan.image2Tz();
