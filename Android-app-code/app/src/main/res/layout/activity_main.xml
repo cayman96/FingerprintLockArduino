@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/darker_gray"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:id="@+id/appLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:textAlignment="center">
+
+        <LinearLayout
+            android:id="@+id/scanStatusTxtLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="50dp"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/scanStatusTxt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:padding="5dp"
+                android:text="Scanner status:"
+                android:textAlignment="viewEnd"
+                android:textColor="@android:color/black"
+                android:textSize="24sp" />
+
+            <TextView
+                android:id="@+id/currStatusTxt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.2"
+                android:padding="5dp"
+                android:text="Fetching..."
+                android:textColor="@android:color/black"
+                android:textSize="24sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/buttonsLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="30dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/btnRow1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/addBtn"
+                    android:layout_width="140dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="20dp"
+                    android:layout_weight="1"
+                    android:onClick="addBtnOnClick"
+                    android:text="Add new fingerprint"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/removeBtn"
+                    android:layout_width="140dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="20dp"
+                    android:layout_weight="1"
+                    android:onClick="removeBtnOnClick"
+                    android:text="Remove existing fingerprint" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnRow2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/wipeBtn"
+                    android:layout_width="140dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="20dp"
+                    android:layout_weight="1"
+                    android:onClick="wipeBtnOnClick"
+                    android:text="Wipe database" />
+
+                <Button
+                    android:id="@+id/restartBtn"
+                    android:layout_width="140dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="20dp"
+                    android:layout_weight="1"
+                    android:onClick="restartBtnOnClick"
+                    android:text="Restart lock" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnRow3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/remoteOpnBtn"
+                    android:layout_width="140dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="20dp"
+                    android:layout_weight="1"
+                    android:onClick="remoteOpnBtnOnClick"
+                    android:text="Remote open" />
+
+                <Button
+                    android:id="@+id/remoteClsBtn"
+                    android:layout_width="140dp"
+                    android:layout_height="80dp"
+                    android:layout_margin="20dp"
+                    android:layout_weight="1"
+                    android:onClick="remoteClsBtnOnClick"
+                    android:text="Remote close" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,15 @@
+<resources>
+    <!-- Base application theme. -->
+    <style name="FLockTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="android:actionBarStyle">@style/FLockActionBar</item>
+        <item name="android:editTextStyle">@style/FLockAddRemPopupTxt</item>
+    </style>
+    <style name="FLockActionBar" parent="Widget.AppCompat.Light.ActionBar">
+        <item name="android:background">#a8a8a8</item>
+    </style>
+    <style name="FLockAddRemPopupTxt" parent="Widget.AppCompat.EditText">
+        <item name="android:gravity">center</item>
+    </style>
+
+</resources>
