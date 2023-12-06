@@ -1,24 +1,61 @@
-#include "doorLockFunctions.h"
+#include <doorLockFunctions.h>
+
+// pin declatation
+const int lR = 12;
+const int lG = 13;
+const int magnetPin = 11;
+const int servoPin = 10;
+const int btRx = 9;
+const int btTx = 8;
+const int btSt = 7;
+const int openPin = 6;
+const int fTx = 5; // white
+const int fRx = 4; // green
+const int rst = 3;
+const unsigned int btnPress = 25;
+const unsigned int btCheck = 50;
+const unsigned int emergencyCheck = 25;
+const unsigned short doorDidntOpenTime = 10000;
+const unsigned int fpScanCheck = 100;
+Bounce openLockBtn = Bounce();
+hd44780_I2Cexp lcd;
+PWMServo doorLock;
+SoftwareSerial btModule(btRx, btTx);
+SoftwareSerial fingerprintScanner(fRx, fTx);
+Adafruit_Fingerprint fingerScan = Adafruit_Fingerprint(&fingerprintScanner);
+boolean btState = false; // current bluetooth connection state 
+boolean scannerConn = false; // scanner state
+boolean lastBtState = false; // last bluetooth state - kept for comparison
+char btComm; // received content from bluetooth
+// variables used for keeping time for specific actions times
+unsigned int btnPressLastTime = 0;
+unsigned int btCheckLastTime = 0;
+unsigned int fingerScanLastTime = 0;
+unsigned int currentTime = 0;
+
+// preparing pins and modules for their role
 void initialSetup() {
+  lcd.begin(16,2);
   pinMode(lR, OUTPUT);
   pinMode(lG, OUTPUT);
   pinMode(btSt, INPUT);
   pinMode(rst, OUTPUT);
-  pinMode(magnetPin, INPUT_PULLUP); //używam tu input-pullup bo mi sie nie chce podłączać kolejnego rezystora - najwyżej podłączę go jak faktycznie będzie sprawiało to jakies kłopoty, np. jak zamontuje alarm jakiś.
-  digitalWrite(rst, LOW); //to powinno powtrzymać wysyłanie sygnału do resetu przy reboocie układu
+  // I could use an external resistor for this pin, but it's not necessary
+  // and I think the build-in resistor will suffice
+  pinMode(magnetPin, INPUT_PULLUP);
   digitalWrite(lG, HIGH);
   digitalWrite(lR, HIGH);
-  //przypisanie serwa
+  // attaching servo to correct pin
   doorLock.attach(servoPin);
-  //przypisanie przycisku do obiektu Bounce - do jednej nóżki jest podłączony rezystor, bo samo ustawienie input_pullup niestety nic nie dało, pamiętam ten case
+  // attaching Bounce object to the correct pin and setting up interval for debouncing
   openLockBtn.attach(openPin, INPUT_PULLUP);
   openLockBtn.interval(25);
-  //uruchamianie ortu szeregowego do obsługi bt - prędkość 9600 baud
+  // initializing bluetooth in serial module and setting up transfer speed - in bauds
   btModule.begin(9600);
-  //uruchamianie portu szeregowego do obsługi czytnika linii papilarnych - więcej danych tu idzie, dlatego pewnie i prędkość wyższa
+  // initializing fingerprint scanner
   fingerScan.begin(57600);
-  //o, to jest fajne - na tym etapie program sprawdza, czy magnesy się stykają i jeśli nie - drzwi są otwarte, także czeka sobie, aż user zamknie i na wszelki wypadek chowa wsuwkę zamka.
-  if(digitalRead(magnetPin) == HIGH){
+  // checking if the door is open or not and setting up servo to correct position
+  if (digitalRead(magnetPin) == HIGH) {
     doorLock.write(0);
     lockOpenBehavior();
     delay(500);
@@ -27,127 +64,122 @@ void initialSetup() {
     delay(500);
   }
 }
-//sprawdzenie, czy skaner jest podłączony do zasilania i do tx/rx
+// checking if fingerprint scanner is alive
 void fpScannerCheck() {
-  //gwoli wyjaśnienia - nie ustalałem żadnego hasła dla czytnika.
-  //metoda verifyPassword w tym miejscu potrzebna mi jest po to, aby sprawdzić czy skaner jest podłączony.
+  // although there is no password set to this fingerprint scanner
+  // this function helps with checking if there is an connection to the scanner
   scannerConn = fingerScan.verifyPassword();
   if (scannerConn) {
     defaultScreenSwitcher();
   } else {
     defaultScreenSwitcher();
-    while(1){
-      //czekanie na połączenie bt i odpalenie trybu serwisowego, gdy połączenie zostanie nawiązane
+    while(1) {
+      // looking up if there's bluetooth connection
       currentTime = millis();
       if (currentTime - btCheckLastTime > btCheck) {
         btCheckLastTime = currentTime;
         btState = digitalRead(btSt);
         checkPrevBtState();
       }
+      // if yes then engage maintenance mode
       maintenanceModeMenu();
     }
-    }
+  }
 }
-//funkcja sprawdzająca stan bt, zmieniająca wartość btState w zależności od połączenia i zmieniająca tekst na ekranie
-void checkPrevBtState(){
-  if(lastBtState != btState){
+// function comparing previous and current bluetooth state
+void checkPrevBtState() {
+  if (lastBtState != btState) {
     defaultScreenSwitcher();
     lastBtState = btState;
-    }
+  }
 }
-//manualne otwarcie po kliknięciu przycisku
+//manual lock open and lock open behavior
 void manualOpen() {
   openLock();
   lockOpenBehavior();
 }
 
 uint8_t unlockWithFingerprint() {
-  //przełączenie na skaner - niestety, arduino nie może jednocześnie podsłuchiwać/nadawać domyślnie na dwóch portach szeregowych na raz.
+  // switching to scanner - because serial can't listen to more than one thing at once
   fingerprintScanner.listen();
-  //pobranie obrazu z szybki skanera
+  // fetching image from scanner
   uint8_t p = fingerScan.getImage();
   switch (p) {
-    //układ daje znać, że znalazło palec
+    // message that finger has been detected
     case FINGERPRINT_OK:
-    lcdAndLedMsg(LOW,LOW,4,3,"Finger","detected!", 200);
+      lcdAndLedMsg(LOW,LOW,4,3,"Finger","detected!", 200);
       break;
-      //sprawdzenie, czy skaner wgl "żyje"
+      // re-checking the connection if something goes wrong
     case FINGERPRINT_PACKETRECIEVEERR:
       fpScannerCheck();
     default:
-      //jeśli 2 ww. warunki się nie spełnią, to sprawdza stan przycisku
+      // if none of above has been return by scanner, check button status
       openLockBtn.update();
       if (openLockBtn.fell()) manualOpen();
       return p;
   }
-  //pobranie obrazu palca z szybki i kompliacja do zgodnego formatu dla skanera
+  // downloading an image from scanner and converting it to the readable format
   p = fingerScan.image2Tz();
   switch (p) {
-    //obraz palca poprawny, przechodzi do szukania w bazie
+    // if valis image, then check database
     case FINGERPRINT_OK:
-    lcdAndLedMsg(LOW,LOW,1,1,"Checking for","valid match...",200);
+      lcdAndLedMsg(LOW,LOW,1,1,"Checking for","valid match...",200);
       break;
     case FINGERPRINT_IMAGEMESS:
-    //jak coś pójdzie nie tak to wypluje komunikat
-    lcdAndLedMsg(LOW,HIGH,2,1,"Invalid","fingerprint.",1000);
-    lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
+      // if not, then return an error
+      lcdAndLedMsg(LOW,HIGH,2,1,"Invalid","fingerprint.",1000);
+      lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
     while (p != FINGERPRINT_NOFINGER) {
-      //jeśli nic nie wykryje konkretnego to skanuje ponownie
+      // wait until finger is off the scanner
       p = fingerScan.getImage();
     }
   }
-  //szuka w bazie zgodnego wzoru palca
+  // search database for finger template matching the recently fetched one
   p = fingerScan.fingerSearch();
-  //SPRÓBUJ PRZEROBIĆ TEN WARUNEK NA SWITCH..CASE!!!
-  if (p == FINGERPRINT_OK) {
-    //wzór zgodny, otwiera zamek i request, żeby palec zdjąć
-    lcdAndLedMsg(LOW,LOW,2,1,"Found match!","Opening lock...",0);
-    openLock();
-    lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
-    while (p != FINGERPRINT_NOFINGER) {
-      p = fingerScan.getImage();
-    }
-    //funkcja kontrolująca co się dzieje gdy zamek jest otwarty
-    lockOpenBehavior();
-    //return p;
-    
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    //w przypadku gdy wystąpi jakiś błąd podczas skanowania to wypluje to i wróci do punktu wyjścia
-    lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
-    //return p;
-  } else if (p == FINGERPRINT_NOTFOUND) {
-    //nie znajdzie żadnego wzoru, zdjąć palec i czeka aż user faktycznie go zdejmie
-    lcdAndLedMsg(LOW,HIGH,2,1,"Invalid","fingerprint.",1000);
-    lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
-    while (p != FINGERPRINT_NOFINGER) {
-      p = fingerScan.getImage();
-    }
-    //zmiana na adekwatny komunikat na screenie
-    defaultScreenSwitcher();
-    //return p;
-  } 
+  switch(p) {
+    case FINGERPRINT_OK:
+      lcdAndLedMsg(LOW,LOW,2,1,"Found match!","Opening lock...",0);
+      openLock();
+      lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
+      while (p != FINGERPRINT_NOFINGER) {
+        p = fingerScan.getImage();
+      }
+      break;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
+      break;
+    case FINGERPRINT_NOTFOUND:
+      lcdAndLedMsg(LOW,HIGH,2,1,"Invalid","fingerprint.",1000);
+      lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
+      while (p != FINGERPRINT_NOFINGER) {
+        p = fingerScan.getImage();
+      }
+    default:
+      defaultScreenSwitcher();
+  }
+  return p;
 }
-/*closeLock i openLock pisane były z myślą o zdalnym otwieraniu zamka i budową są podobne (może przerobibć to na jedną funkcję?:
- * sprawdzenie, czy zamek jest otwarty lub zamknięty,
- * jeśli chcemy otworzyć/zamknąć, a już jest otwarty/zamknięty to wypluwa komunikat, że już otwarliśmy/zamknęliśmy
- * w przeciwnym wypadku otwiera/zamyka zamek.
- * wyświetla default komunikat, dlatego wywołanie defaultScreenSwitcher
-*/
+
+// function for closing the lock
 void closeLock() {
-  if(doorLock.read() == 180){
+  // well, this is mostly for remote control
+  if (doorLock.read() == 180) {
     lcdAndLedMsg(LOW,HIGH,4,1,"Lock is","already closed.",500);
-    } else {
+  } else {
+  // closing the lock
     lcdAndLedMsg(LOW,LOW,3,0,"Closing...","",0);
     doorLock.write(180);
     delay(500);
     lcdAndLedMsg(HIGH,LOW,4,2,"Lock has","been closed!",500);
   }
+  // switch the message on the screen to the appropriate
   defaultScreenSwitcher();
 }
+// ditto, but for opening
 void openLock() {
-  if(doorLock.read() == 0){
+  if (doorLock.read() == 0) {
     lcdAndLedMsg(LOW,HIGH,4,2,"Lock is","already open.",500);
-    } else {
+  } else {
     lcdAndLedMsg(LOW,LOW,3,0,"Opening...","",0);
     doorLock.write(0);
     delay(500);
@@ -155,186 +187,183 @@ void openLock() {
   }
   defaultScreenSwitcher();
 }
-//w tej funkcji opisane jest zachowanie zamka w przypadku, gdy drzwi zostaną otwarte
+// this controls behavior when the lock has been opened
 void lockOpenBehavior() {
-  unsigned short doorClosedTimeout = 0; //zmienna przechowująca czas od otwarcia zamka (czemu to się nie znajduje w headerze? przenieść i sprawdzić, czy będzie działać)
+  // this will help measure the timeout to automatically lock the... well, lock.
+  unsigned short doorClosedTimeout = 0;
   lcdAndLedMsg(HIGH,LOW,3,1,"Unlocked!","Now open doors.",0);
-  doorClosedTimeout = 0; //jeśli zostawiam to pierwsze, to to jest redundant
-  //jeśli zamek jest zamknięty
+  // if the lock is closed, then count 10 seconds
   while (digitalRead(magnetPin) == LOW) {
-    //UWAGA! Pamiętam ten przypadek, chciałem to odmierzać za pomocą millis, ale z jakiegoś powodu za pierwszym razem działało, potem zamykał się od razu -.-
-    //jeśli timeout +- 10 sekund to przeskocz do zamknięcia
-    if(doorClosedTimeout == 10000){
+    // if 10 seconds have passed
+    if (doorClosedTimeout == 10000) {
+      // jump to this label and break out of the loop
       goto doorDidntOpen;
       break;
-      }
-      //zliczamy czas po otwarciu. Again, millis mi nie działało, więc robie to w tak barbarzyński sposób. Ja nie lubjiu eto metady, ale no cóż...
-      doorClosedTimeout++;
-      delay(1);
+    }
+      // a very barbaric method of measuring time, need to switch to millis, but I remember I had problems with it here
+    doorClosedTimeout++;
+    delay(1);
   }
   magnetHigh:
-  //czuwa sobie, dopóki drzwi nie zostaną zamknięte
+  // if magnets are still in proximity, await for state change
   lcdAndLedMsg(LOW,LOW,2,1,"Doors open.","Standing by...",0);
-  while (digitalRead(magnetPin) == HIGH) {
-  }
-  //wykrycie zamknięcia
+  while (digitalRead(magnetPin) == HIGH) {}
+  // close detection
   lcdAndLedMsg(LOW,LOW,2,0,"Doors shut.","Locking shortly", 2000);
-  if(digitalRead(magnetPin) == HIGH){
-    //jeśli w międzyczasie się otworzą ponownie to przerywamy i przechodzimy znowu do czuwania
+  if (digitalRead(magnetPin) == HIGH) {
+    // if the doors are closed, and suddenly get open, then jump to this label
     lcdAndLedMsg(LOW,HIGH,1,2,"Doors has been","reopened.", 1000);
     goto magnetHigh;
-    }
-  //zamykamy!
+  }
+  // closing
   doorDidntOpen:
   lcdAndLedMsg(LOW,LOW,3,0,"Locking...","", 0);
   closeLock();
 }
-//
+// the maintenance mode - this is the menu that shows up when bluetooth is connected to the hc-05 module
 void maintenanceModeMenu() {
-  //buckle up, buckeroo. tryb serwisowy.
-  //przełączam na słuchanie modułu bt, wyżej wspomniałem dlaczego
+  // switching serial to bluetooth
   btModule.listen();
-  //pilnujemy, czy user wcisnął przycisk czy nie wcysnął czasem przycisku, jak tak to otwieramy
-  if (currentTime - btnPressLastTime > btnPress){
+  // watching the lock open button
+  if (currentTime - btnPressLastTime > btnPress) {
     btnPressLastTime = currentTime;
-      openLockBtn.update();
-      if (openLockBtn.fell()) {
-        //to jest trochę inna funkcja od openLockBehavior, wytłumaczę dalej dlaczego
-        manualOpen();
-      }
+    openLockBtn.update();
+    if (openLockBtn.fell()) {
+      // opening and returning to the maintenance mode
+       manualOpen();
     }
-  //sprawdzamy, czy w buforze modułu bt coś jest
+  }
+  // awaiting for any data in bluetooth module buffer
   if (btModule.available() > 0) {
-    //czytamy co tam się znajduje się i porównujemy niżej w switch..casie co tam mamy
     btComm = btModule.read();
     switch (btComm) {
-      //mógłbym wysyłać liczby, ale w sumie zostałem przy znakach. każdy case prócz resetu, otwarcia i zamknięcia ma jeszcze dodatkowy warunek sprawdzający, 
-      //czy czasem się połączenie ze skanerem nie zeptuło - może dodam odświeżanie skanera jakieś? pomyślę nad tym
+      // the PROPER options in maintenance mode
+      // most of them checks for scanner, except the lock controls and reset
       case 'a':
-        if (!scannerConn){
+        if (!scannerConn) {
           lcdAndLedMsg(LOW,HIGH,0,0,"Unavailable when","Scanner is off.",750);
           defaultScreenSwitcher();
         } else {
-        //procedura dodawania nowego odcisku
+        // executes fingerprint addition procedure
         btAddFingerProcedure();
         }
         break;
       case 'd':
-      if (!scannerConn){
-          lcdAndLedMsg(LOW,HIGH,0,0,"Unavailable when","Scanner is off.",750);
-          defaultScreenSwitcher();
-        } else {
-        //procedura usuwania zapisanego (lub pustego) odcisku o danym id 
+      if (!scannerConn) {
+         lcdAndLedMsg(LOW,HIGH,0,0,"Unavailable when","Scanner is off.",750);
+        defaultScreenSwitcher();
+      } else {
+        // executes fingerprint removal procedure
         btRemoveFingerProcedure();
-        }
+      }
         break;
       case 'w':
-      if (!scannerConn){
+        if (!scannerConn) {
           lcdAndLedMsg(LOW,HIGH,0,0,"Unavailable when","Scanner is off.",750);
           defaultScreenSwitcher();
         } else {
-        //wywalenie całej bazy
-        btClearDatabaseProcedure();
+          // fingerprint database wipe
+          btClearDatabaseProcedure();
         }
         break;
       case 'o':
-        //zdalne otwarcie
+        // remote open
         openLock();
         break;
       case 'c':
-        //zdalne zamknięcie
+        // remote close
         closeLock();
         break;
       case 'r':
-        //zdalny restart
+        // remote restart
         btRestartConfirmation();
         break;
-      //defaultowo non stop sprawdza, czy bufor coś zawiera
+      // this is supposed to break and go back to the buffer check, but I'm not sure if it's necessary
       default:
         break;
     }
   }
 }
-//tu się za bardzo nie będę rozpisywał - restart i tyle.
+// remote reset
 void softwareReset() {
   lcdAndLedMsg(LOW,LOW,2,0,"Restarting...","",2000);
   digitalWrite(rst, LOW);
-  //teoretycznie dwie pozostałe linijki kodu nie powinny nigdy się wykonać, ale w ramach debuggingu je tu zostawiam
+  // theoretically, this should never execute if the function works correctly
   delay(1000);
   digitalWrite(rst, HIGH);
   defaultScreenSwitcher();
 }
-//w procedurze dodawania i usuwania wpisu z bazy danych odcisków trzeba podać nr ID. ta funkcja się zajmuje konwersją na uint8_t (wg. specyfikacji taki typ danych jest obsługiwany (całkowite nieujemne od 0 do 127 - 8-bitowy integer)
+// this function handles id sent throught the bluetooth
 uint8_t getFingerId() {
-  //przełączenie na bt, znowu
+  // switch serial to listen to btModule
   btModule.listen();
-  //w id będziemy trzymć to, co przekażemy dalej
-  uint8_t id = 0;
-  //generalnie, trig przełączymy na true jeśli wprowadzimy poprawne it - po to, by popchnąć funkcję dalej.
+  // variable uninitialized, it's purpose is to hold the id fetched from bluetooth module and be returned by function
+  uint8_t id;
+  // while id is empty or does not meet requirements, keep false
   bool trig = false;
   while (!trig) {
-    //jeśli nic nie zostało wysłane jeszcze to na bieząco odświeżamy i sprawdzamy, czy coś znajduje się w buforze.
+    // await for data in bluetooth buffer 
     while (!btModule.available()) {}
-     id = btModule.parseInt();
-     //mówiłem, że może obsługiwać od 0 do 127, aczkolwiek ograniczyłem to do 20. Designer's choice!
-     //tak naprawdę z jakiegoś powodu do max tego id mi działał czytnik, powyżej tego nie zapisywał nowych 
-     if(id == 0 || id <= 20){
-      //jak sie mieści między 0 a 20 to trig na true
-       trig = !trig;
-     } else {
-      //jeśli ww. warunek nie jest spełniony to wracamy do wprowadzania (albo wracamy do menu? sprawdzić!)
+    // convert the data from buffer to int and assign to id variable
+    id = btModule.parseInt();
+    // if id meets the requirement, then switch trig value to true
+    if(id == 0 || id <= 20) {
+      trig = !trig;
+    } else {
+      // if not, show message
       lcdAndLedMsg(LOW,HIGH,2,0,"Please pick","valid id! <1,20>",0);
-      }
     }
+  }
   return id;
 }
 void btAddFingerProcedure() {
   lcdAndLedMsg(LOW,LOW,0,0,"Pick ID to save","pattern <1,20>",0);
-  //odebranie id z bt i przekazanie do zmiennej
+  // get id
   uint8_t fingerId = getFingerId();
-  //jeśli nie 0 to przejść do zapisywania palca
+  // if id not equal to 0, proceed with adding new fingerprint at specific id
   if (fingerId != 0)
   {
     btEnrollFingerprint(fingerId);
-  }
-  //jeśli 0 to anulujemy całą procedurę
-  else {
+  } else {
+  // if 0, cancel the operation
     lcdAndLedMsg(LOW,HIGH,3,3,"Operation","cancelled.",500);
   }
+  // after one of the above completes, switch serial back to listening to bluetooth and change message
   btModule.listen();
   defaultScreenSwitcher();
 }
-//jak mamy poprawne ID to dodajemy nowy odcisk
+// new fingerprint enrollment at specified id procedure
 void btEnrollFingerprint(uint8_t fId) {
-  //generalnie, dodajemy sobie do bufora msg i id, żeby potem wyświetlić na ekranie w którym id zapisaliśmy ten odcisk
+  // a small buffer to later show at which id the fingerprint has been added
   String msg = "at ID ";
   String msgBuffer = msg + fId;
-  //switch na skaner
+  // switch to scanner
   fingerprintScanner.listen();
   lcdAndLedMsg(LOW,LOW,1,2,"Place finger","on scanner.",0);
-  int p = -1; //czyścimy nasz input ze skanera
+  // clear the garbage data from the p variable, which will be used to store the fingerprint image
+  int p = -1; 
   while (p != FINGERPRINT_OK) {
     p = fingerScan.getImage();
     switch (p) {
       case FINGERPRINT_OK:
-      lcdAndLedMsg(LOW,LOW,4,3,"Finger","detected!", 200);
+        lcdAndLedMsg(LOW,LOW,4,3,"Finger","detected!", 200);
         break;
       case FINGERPRINT_NOFINGER:
         break;
       default:
-      lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
-      //return p;
+        lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
     }
   }
-  //robimy pierwszy zkan do pliku - przy dodawaniu robione są dwa, żeby sprawdzić, czy czasem podczas dodawania nie próbujemy dodać dwóch różnych odcisków palca
+  // saving scanned image to the type readable by scanner
+  // pretty much what happens below, it saves the first scan, then second, later on
+  // the program builds a model from those two scans and saves it to its database under
+  // specified id
   p = fingerScan.image2Tz(1);
-  if(p == FINGERPRINT_OK){
+  if(p == FINGERPRINT_OK) {
     lcdAndLedMsg(LOW,LOW,1,2,"Got the image","of finger.", 200);
-    }
-  else{
+  } else {
     lcdAndLedMsg(LOW,HIGH,1,1,"Image too messy!","Start all over.",500);
-    //return p;
-   }
+  }
   p = 0;
   lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
   while (p != FINGERPRINT_NOFINGER) {
@@ -347,96 +376,78 @@ void btEnrollFingerprint(uint8_t fId) {
     p = fingerScan.getImage();
   }
   lcdAndLedMsg(LOW,LOW,4,3,"Finger","detected!", 200);
-  //drugi zrzut do pliku
   p = fingerScan.image2Tz(2);
-    if (p == FINGERPRINT_OK){
+  if (p == FINGERPRINT_OK) {
     lcdAndLedMsg(LOW,LOW,1,2,"Got the image","of finger.", 200);
-    } else {
-      lcdAndLedMsg(LOW,HIGH,1,1,"Something went","wrong, try again.",500);
-      //return p; 
-      }
-  //porównanie dwóch plików i utworzenie z nich modelu odcisku
+  } else {
+    lcdAndLedMsg(LOW,HIGH,1,1,"Something went","wrong, try again.",500);
+  }
   p = fingerScan.createModel();
   if (p == FINGERPRINT_OK) {
     lcdAndLedMsg(LOW,LOW,1,2,"Creating model","of finger...", 100);
   } else {
     lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
-    //return p;
   }
-  //zapisanie modelu do bazy do wpisu o danym id
   p = fingerScan.storeModel(fId);
   if (p == FINGERPRINT_OK) {
     lcdAndLedMsg(HIGH,LOW,0,3,"Finger is saved",msgBuffer, 1000);
   } else {
     lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
-    //return p;
   }
   lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
   while (p != FINGERPRINT_NOFINGER) {
     p = fingerScan.getImage();
   }
 }
-//procedura usuwania - pierw wprowadzenie id od 1 do 20 lub anulowanie operacji
+// fingerprint removal procedure
 void btRemoveFingerProcedure() {
   lcdAndLedMsg(LOW,LOW,0,0,"Pick ID to wipe","from mem <1,20>",0);
-  //pobranie id z buforu bt
   uint8_t fingerId = getFingerId();
-  if (fingerId != 0)
-  {
+  if (fingerId != 0){
     btRemoveFingerConfirmation(fingerId);
-  }
-  else {
+  } else {
     lcdAndLedMsg(LOW,HIGH,3,3,"Operation","cancelled.",500);
   }
   btModule.listen();
   defaultScreenSwitcher();
 }
 void btRemoveFingerprint(uint8_t fId) {
-  //znowu przełączka na skaner
   fingerprintScanner.listen();
   uint8_t p = -1;
-  //usunięcie modelu znajdującego się pod danym id
   p = fingerScan.deleteModel(fId);
   if (p != FINGERPRINT_OK) {
     lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
-    //return p;
-    }
+  }
 }
-//upewniamy sie, czy chcemy na pewno usunąć model znajdujący sie pod danym id.
 void btRemoveFingerConfirmation(uint8_t fId){
   String msgOne = "ID ";
   String msgTwo = " to wipe.";
-  //buffer do dalszych komunikatów - umieszczam go w funkcji, bo w sumie tu jest tylko on potrzebny.
-  // a może nie...? może wywalić te buffery do headera i potem tylko dodać jako argumenty do funkcji? Bede o tym jeszcze myślał...
   String msgBuffer = msgOne + fId + msgTwo;
   String msgThree = " has been";
-  //czekamy co nam user wyśle przez bt y/n
+  // confirmation message
   lcdAndLedMsg(LOW,LOW,1,2,msgBuffer,"Sure? (Y/N)",0);
   while (!btModule.available()) {}
   char option = btModule.read();
   switch (option) {
     case 'y':
-      //przełączka na skaner, sklecenie do bufora komunikatu, usunięcie z bazy modelu pod danym id i potwierdzenie
       msgBuffer = msgOne + fId + msgThree;
       fingerprintScanner.listen();
       btRemoveFingerprint(fId);
       lcdAndLedMsg(HIGH,LOW,1,3,msgBuffer,"cleared!",1000);
       break;
     case 'n':
-      //anulowanie operacji
       lcdAndLedMsg(LOW,HIGH,3,3,"Operation","cancelled.",500);
       break;
     default:
       break;
   }
 }
-//procedura czyszczenia
+// the whole database clearing procedure
 void btClearDatabaseProcedure() {
   btClearConfirmation();
   btModule.listen();
   defaultScreenSwitcher();
 }
-//standard, komunikat, czekanie na odp z bufora bt, w zależności od wyboru albo czyszczenie, albo anulowanie operacji
 void btClearConfirmation() {
   lcdAndLedMsg(LOW,LOW,0,1,"Clear database.","Really? (Y/N)",0);
   while (!btModule.available()) {}
@@ -448,8 +459,7 @@ void btClearConfirmation() {
       if(fingerScan.verifyPassword()){
         fingerScan.emptyDatabase();
         lcdAndLedMsg(HIGH,LOW,2,0,"Fingerprint","database clear!",1000);
-      }
-      else {
+      } else {
         lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
       }
       return;
@@ -460,7 +470,7 @@ void btClearConfirmation() {
       break;
   }
 }
-//potwierdzenie wyboru restartu układu
+// circuit restart procedure
 void btRestartConfirmation() {
   lcdAndLedMsg(LOW,LOW,2,3,"Restart lock.","Sure? (Y/N)",0);
   while (!btModule.available()) {}
@@ -477,7 +487,8 @@ void btRestartConfirmation() {
       break;
   }
 }
-//generyczna funkcja służąca do wyświetlania na ekranie lcd komunikatów oraz zmiany koloru leda zależnie od kontekstu
+// lcd message handler - handles red and green led status, clearing the screen, cursor positions and messages
+// shown on the screen, as well as the delay time
 void lcdAndLedMsg(boolean stateR, boolean stateG, int lcdPos1, int lcdPos2, String msg1, String msg2, int dl){
   digitalWrite(lR, stateR);
   digitalWrite(lG, stateG);
@@ -487,30 +498,33 @@ void lcdAndLedMsg(boolean stateR, boolean stateG, int lcdPos1, int lcdPos2, Stri
   lcd.setCursor(lcdPos2,1);
   lcd.print(msg2);
   if(dl > 0) delay(dl);
-  };
-//przełączenie domyślnego ekranu pomiędzy oczekiwaniem na palec, błedu skanera i trybu serwisowego
- void defaultScreenSwitcher(){
+}
+// to prevent screen from refreshing too often, this function switches the messages
+// for normal operations and maintenance mode whenever necessary
+void defaultScreenSwitcher(){
   switch(scannerConn){
     case true:
-    switch(btState){
-      case true:
-      lcdAndLedMsg(LOW,LOW,0,3,"Maintenance mode","engaged!",0);
-      btModule.println(scannerConn);
+      switch(btState){
+        case true:
+          lcdAndLedMsg(LOW,LOW,0,3,"Maintenance mode","engaged!",0);
+          btModule.println(scannerConn);
+          break;
+        case false:
+          lcdAndLedMsg(HIGH,HIGH,3,1,"Waiting for","finger to scan...",0);
+          break;
+        }
+        break;
       break;
-      case false:
-      lcdAndLedMsg(HIGH,HIGH,3,1,"Waiting for","finger to scan...",0);
-      }
-      break;
-    break;
     case false:
-    switch(btState){
-      case true:
-      lcdAndLedMsg(LOW,LOW,0,3,"Maintenance mode","engaged!",0);
-      btModule.println(scannerConn);
-      break;
-      case false:
-      lcdAndLedMsg(LOW,HIGH,2,3,"Scanner error","Connect app.",0);
-      }
+      switch(btState){
+        case true:
+          lcdAndLedMsg(LOW,LOW,0,3,"Maintenance mode","engaged!",0);
+          btModule.println(scannerConn);
+          break;
+        case false:
+          lcdAndLedMsg(LOW,HIGH,2,3,"Scanner error","Connect app.",0);
+          break;
+        }
       break;
     }
-  }
+}
