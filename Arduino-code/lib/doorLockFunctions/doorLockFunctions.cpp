@@ -12,11 +12,12 @@ const int openPin = 6;
 const int fTx = 5; // white
 const int fRx = 4; // green
 const int rst = 3;
-const unsigned int btnPress = 25;
-const unsigned int btCheck = 50;
-const unsigned int emergencyCheck = 25;
-const unsigned short doorDidntOpenTime = 10000;
-const unsigned int fpScanCheck = 100;
+const unsigned short btnPress = 25;
+const unsigned short btCheck = 50;
+const unsigned short emergencyCheck = 25;
+//that gives +- 10s on nano, I checked it with a stopwatch so idk how accurate it is
+const unsigned short doorDidntOpenTime = 11500; 
+const unsigned short fpScanCheck = 100;
 Bounce openLockBtn = Bounce();
 hd44780_I2Cexp lcd;
 PWMServo doorLock;
@@ -32,6 +33,7 @@ unsigned int btnPressLastTime = 0;
 unsigned int btCheckLastTime = 0;
 unsigned int fingerScanLastTime = 0;
 unsigned int currentTime = 0;
+unsigned long doorClosedTimeout = 0;
 
 // preparing pins and modules for their role
 void initialSetup() {
@@ -189,20 +191,17 @@ void openLock() {
 }
 // this controls behavior when the lock has been opened
 void lockOpenBehavior() {
+  doorClosedTimeout = currentTime;
   // this will help measure the timeout to automatically lock the... well, lock.
-  unsigned short doorClosedTimeout = 0;
   lcdAndLedMsg(HIGH,LOW,3,1,"Unlocked!","Now open doors.",0);
   // if the lock is closed, then count 10 seconds
   while (digitalRead(magnetPin) == LOW) {
+    currentTime = millis();
     // if 10 seconds have passed
-    if (doorClosedTimeout == 10000) {
-      // jump to this label and break out of the loop
+    if (currentTime - doorClosedTimeout >= doorDidntOpenTime) {
+      // jump to this label
       goto doorDidntOpen;
-      break;
     }
-      // a very barbaric method of measuring time, need to switch to millis, but I remember I had problems with it here
-    doorClosedTimeout++;
-    delay(1);
   }
   magnetHigh:
   // if magnets are still in proximity, await for state change
