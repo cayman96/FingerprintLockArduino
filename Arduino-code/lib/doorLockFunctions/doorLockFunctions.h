@@ -24,11 +24,11 @@ extern const int openPin;
 extern const int fTx;
 extern const int fRx;
 extern const int rst;
-extern const unsigned int btnPress;
-extern const unsigned int btCheck;
-extern const unsigned int emergencyCheck;
+extern const unsigned short btnPress;
+extern const unsigned short btCheck;
+extern const unsigned short emergencyCheck;
 extern const unsigned short doorDidntOpenTime;
-extern const unsigned int fpScanCheck;
+extern const unsigned short fpScanCheck;
 extern Bounce openLockBtn;
 extern hd44780_I2Cexp lcd;
 extern PWMServo doorLock;
@@ -39,10 +39,11 @@ extern boolean btState; // current bluetooth connection state
 extern boolean scannerConn; // scanner state
 extern boolean lastBtState; // last bluetooth state - kept for comparison
 extern char btComm; // received content from bluetooth
-extern unsigned int btnPressLastTime;
-extern unsigned int btCheckLastTime;
-extern unsigned int fingerScanLastTime;
-extern unsigned int currentTime;
+extern unsigned long btnPressLastTime;
+extern unsigned long btCheckLastTime;
+extern unsigned long fingerScanLastTime;
+extern unsigned long currentTime;
+extern unsigned long doorClosedTimeout;
 // function declarations
 void initialSetup();
 void checkPrevBtState();
