@@ -29,10 +29,10 @@ boolean scannerConn = false; // scanner state
 boolean lastBtState = false; // last bluetooth state - kept for comparison
 char btComm; // received content from bluetooth
 // variables used for keeping time for specific actions times
-unsigned int btnPressLastTime = 0;
-unsigned int btCheckLastTime = 0;
-unsigned int fingerScanLastTime = 0;
-unsigned int currentTime = 0;
+unsigned long btnPressLastTime = 0;
+unsigned long btCheckLastTime = 0;
+unsigned long fingerScanLastTime = 0;
+unsigned long currentTime = 0;
 unsigned long doorClosedTimeout = 0;
 
 // preparing pins and modules for their role

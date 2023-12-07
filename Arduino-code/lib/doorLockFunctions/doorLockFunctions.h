@@ -39,10 +39,10 @@ extern boolean btState; // current bluetooth connection state
 extern boolean scannerConn; // scanner state
 extern boolean lastBtState; // last bluetooth state - kept for comparison
 extern char btComm; // received content from bluetooth
-extern unsigned int btnPressLastTime;
-extern unsigned int btCheckLastTime;
-extern unsigned int fingerScanLastTime;
-extern unsigned int currentTime;
+extern unsigned long btnPressLastTime;
+extern unsigned long btCheckLastTime;
+extern unsigned long fingerScanLastTime;
+extern unsigned long currentTime;
 extern unsigned long doorClosedTimeout;
 // function declarations
 void initialSetup();
