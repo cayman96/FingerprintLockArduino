@@ -4,8 +4,6 @@
 void setup() {
   // lcd declaration, pins role declaration and checking if magnetic sensors are close
   initialSetup();
-  // check if scanner has connection
-  fpScannerCheck();
 }
 void loop() {
   // main function - first, we're starting counting time from boot of the program
@@ -26,6 +24,7 @@ void loop() {
       lockOpenBehavior();
     }
     // interval between checking button press
+    currentTime = millis();
     if (currentTime - btnPressLastTime > btnPress) {
       btnPressLastTime = currentTime;
       openLockBtn.update();
@@ -36,6 +35,7 @@ void loop() {
     }
     // interval between checking if there is a finger on the scanner
     // if yes, then engage unlocking with fingerprint scanner procedure
+    currentTime = millis();
     if (currentTime - fingerScanLastTime > fpScanCheck) {
       fingerScanLastTime = currentTime;
       unlockWithFingerprint();
