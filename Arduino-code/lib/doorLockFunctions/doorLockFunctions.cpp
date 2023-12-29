@@ -65,6 +65,7 @@ void initialSetup() {
     doorLock.write(180);
     delay(500);
   }
+  fpScannerCheck();
 }
 // checking if fingerprint scanner is alive
 void fpScannerCheck() {
@@ -75,14 +76,12 @@ void fpScannerCheck() {
     defaultScreenSwitcher();
   } else {
     defaultScreenSwitcher();
-    while(1) {
-      // looking up if there's bluetooth connection
-      currentTime = millis();
-      if (currentTime - btCheckLastTime > btCheck) {
-        btCheckLastTime = currentTime;
-        btState = digitalRead(btSt);
-        checkPrevBtState();
-      }
+    // looking up if there's bluetooth connection
+    currentTime = millis();
+    if (currentTime - btCheckLastTime > btCheck) {
+      btCheckLastTime = currentTime;
+      btState = digitalRead(btSt);
+      checkPrevBtState();
       // if yes then engage maintenance mode
       maintenanceModeMenu();
     }
@@ -116,6 +115,7 @@ uint8_t unlockWithFingerprint() {
       fpScannerCheck();
     default:
       // if none of above has been return by scanner, check button status
+      fpScannerCheck();
       openLockBtn.update();
       if (openLockBtn.fell()) manualOpen();
       return p;
@@ -148,8 +148,8 @@ uint8_t unlockWithFingerprint() {
       }
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
-      lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
-      break;
+      lcdAndLedMsg(LOW,HIGH,2,1,"A fatal error ","has occured.",1000);
+      return p;
     case FINGERPRINT_NOTFOUND:
       lcdAndLedMsg(LOW,HIGH,2,1,"Invalid","fingerprint.",1000);
       lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
@@ -332,7 +332,7 @@ void btAddFingerProcedure() {
   defaultScreenSwitcher();
 }
 // new fingerprint enrollment at specified id procedure
-void btEnrollFingerprint(uint8_t fId) {
+int btEnrollFingerprint(uint8_t fId) {
   // a small buffer to later show at which id the fingerprint has been added
   String msg = "at ID ";
   String msgBuffer = msg + fId;
@@ -350,7 +350,8 @@ void btEnrollFingerprint(uint8_t fId) {
       case FINGERPRINT_NOFINGER:
         break;
       default:
-        lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
+        lcdAndLedMsg(LOW,HIGH,2,1,"A fatal error ","has occured.",1000);
+        return p;
     }
   }
   // saving scanned image to the type readable by scanner
@@ -385,18 +386,21 @@ void btEnrollFingerprint(uint8_t fId) {
   if (p == FINGERPRINT_OK) {
     lcdAndLedMsg(LOW,LOW,1,2,"Creating model","of finger...", 100);
   } else {
-    lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
+    lcdAndLedMsg(LOW,HIGH,2,1,"A fatal error ","has occured.",1000);
+    return p;
   }
   p = fingerScan.storeModel(fId);
   if (p == FINGERPRINT_OK) {
     lcdAndLedMsg(HIGH,LOW,0,3,"Finger is saved",msgBuffer, 1000);
   } else {
-    lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
+    lcdAndLedMsg(LOW,HIGH,3,1,"A fatal error ","has occured.",1000);
+    return p;
   }
   lcdAndLedMsg(LOW,LOW,0,2,"Take your finger","off scanner.",0);
   while (p != FINGERPRINT_NOFINGER) {
     p = fingerScan.getImage();
   }
+  return p;
 }
 // fingerprint removal procedure
 void btRemoveFingerProcedure() {
@@ -410,13 +414,16 @@ void btRemoveFingerProcedure() {
   btModule.listen();
   defaultScreenSwitcher();
 }
-void btRemoveFingerprint(uint8_t fId) {
+uint8_t btRemoveFingerprint(uint8_t fId, String msgBuffer) {
   fingerprintScanner.listen();
   uint8_t p = -1;
   p = fingerScan.deleteModel(fId);
   if (p != FINGERPRINT_OK) {
-    lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
+    lcdAndLedMsg(LOW,HIGH,2,1,"A fatal error ","has occured.",1000);
+    return p;
   }
+  lcdAndLedMsg(HIGH,LOW,1,3,msgBuffer,"cleared!",1000);
+  return p;
 }
 void btRemoveFingerConfirmation(uint8_t fId){
   String msgOne = "ID ";
@@ -431,8 +438,7 @@ void btRemoveFingerConfirmation(uint8_t fId){
     case 'y':
       msgBuffer = msgOne + fId + msgThree;
       fingerprintScanner.listen();
-      btRemoveFingerprint(fId);
-      lcdAndLedMsg(HIGH,LOW,1,3,msgBuffer,"cleared!",1000);
+      btRemoveFingerprint(fId, msgBuffer);
       break;
     case 'n':
       lcdAndLedMsg(LOW,HIGH,3,3,"Operation","cancelled.",500);
@@ -459,7 +465,7 @@ void btClearConfirmation() {
         fingerScan.emptyDatabase();
         lcdAndLedMsg(HIGH,LOW,2,0,"Fingerprint","database clear!",1000);
       } else {
-        lcdAndLedMsg(LOW,HIGH,3,1,"An error ","has occured.",1000);
+        lcdAndLedMsg(LOW,HIGH,2,1,"A fatal error ","has occured.",1000);
       }
       return;
     case 'n':
